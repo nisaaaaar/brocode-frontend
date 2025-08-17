@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { socket } from "../socket";
 import { v4 as uuidv4 } from "uuid";
 
@@ -6,21 +6,43 @@ export default function Login({ onJoin }) {
   const [roomId, setRoomId] = useState("");
   const [username, setUsername] = useState("");
 
-  const generateRoomId = () => {
-    setRoomId(uuidv4());
-  };
+  // Setup socket listeners once
+  useEffect(() => {
+    // Triggered when backend confirms join
+    socket.on("joined", (data) => {
+      onJoin({ roomId: data.roomId, username: data.username });
+    });
 
+    // Handle server errors
+    socket.on("error", (e) => {
+      alert(e?.message || "Failed to join room");
+    });
+
+    // Optional: debug socket connection
+    socket.on("connect", () => console.log("Socket connected!"));
+    socket.on("disconnect", () => console.log("Socket disconnected"));
+
+    // Cleanup listeners on unmount
+    return () => {
+      socket.off("joined");
+      socket.off("error");
+      socket.off("connect");
+      socket.off("disconnect");
+    };
+  }, [onJoin]);
+
+  // Generate random Room ID
+  const generateRoomId = () => setRoomId(uuidv4());
+
+  // Emit join event
   const handleJoin = () => {
     if (!roomId.trim()) return alert("Enter Room ID");
     if (!socket.connected) socket.connect();
+
     socket.emit("join", {
       roomId: roomId.trim(),
       username: username.trim() || "Guest",
     });
-    socket.once("joined", (data) => {
-      onJoin({ roomId: data.roomId, username: data.username });
-    });
-    socket.once("error", (e) => alert(e?.message || "Failed to join"));
   };
 
   return (
@@ -37,11 +59,7 @@ export default function Login({ onJoin }) {
             onChange={(e) => setRoomId(e.target.value)}
             placeholder="Enter or generate Room ID"
           />
-          <button
-            type="button"
-            onClick={generateRoomId}
-            style={styles.secondaryBtn}
-          >
+          <button type="button" onClick={generateRoomId} style={styles.secondaryBtn}>
             Generate
           </button>
         </div>
@@ -62,6 +80,7 @@ export default function Login({ onJoin }) {
   );
 }
 
+// Styles (same as before)
 const styles = {
   container: {
     height: "100vh",
